@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hamina Network Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .control-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .button-row {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+            transition: all 0.3s;
+            min-width: 120px;
+        }
+
+        .btn-blue { background-color: #3b82f6; }
+        .btn-blue:hover { background-color: #2563eb; }
+
+        .btn-green { background-color: #10b981; }
+        .btn-green:hover { background-color: #059669; }
+
+        .btn-purple { background-color: #8b5cf6; }
+        .btn-purple:hover { background-color: #7c3aed; }
+
+        .btn-gray { background-color: #6b7280; }
+        .btn-gray:hover { background-color: #4b5563; }
+
+        .btn-active {
+            background-color: #0d9488 !important;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        #network-container {
+            width: 100%;
+            height: 700px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        #message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 1000;
+        }
+
+        .stats-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .stat-card.switches { border-left-color: #ef4444; }
+        .stat-card.aps { border-left-color: #3b82f6; }
+        .stat-card.interconnects { border-left-color: #8b5cf6; }
+        .stat-card.firewalls { border-left-color: #f59e0b; }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #1f2937;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #6b7280;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 15px 0;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .physics-controls {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #10b981;
+        }
+
+        .physics-controls label {
+            display: inline-block;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .physics-controls select, .physics-controls input {
+            margin-right: 15px;
+            padding: 5px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+        }
+
+        .info-panel {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .info-panel h3 {
+            margin: 0 0 10px 0;
+            color: #1e40af;
+        }
+
+        .info-panel ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .info-panel li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <h1 style="margin: 0 0 15px 0;">🌐 Hamina Network Visualizer</h1>
+        
+        <div class="button-row" style="align-items: center;">
+            <div style="flex: 2; display: flex; gap: 10px; align-items: center;">
+                <label for="projectName" style="font-weight: bold; white-space: nowrap;">Project Name:</label>
+                <input type="text" id="projectName" placeholder="Enter project name..." style="flex: 1; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+            </div>
+            <input type="file" id="jsonFile" accept=".json" style="flex: 1; padding: 10px;">
+        </div>
+
+        <div class="button-row">
+            <button id="visualizeBtn" class="btn btn-green">📊 Visualize Network</button>
+            <button id="toggleAPs" class="btn btn-blue">👁️ Hide APs</button>
+            <button id="fitBtn" class="btn btn-gray">🔍 Fit View</button>
+            <button id="exportBtn" class="btn btn-purple">📷 Export Image</button>
+        </div>
+
+        <div id="stats-container" class="stats-panel" style="display: none;">
+            <div class="stat-card switches">
+                <div class="stat-value" id="switchCount">0</div>
+                <div class="stat-label">Switches</div>
+            </div>
+            <div class="stat-card aps">
+                <div class="stat-value" id="apCount">0</div>
+                <div class="stat-label">Access Points</div>
+            </div>
+            <div class="stat-card interconnects">
+                <div class="stat-value" id="interconnectCount">0</div>
+                <div class="stat-label">Interconnects</div>
+            </div>
+            <div class="stat-card firewalls">
+                <div class="stat-value" id="firewallCount">0</div>
+                <div class="stat-label">Firewalls</div>
+            </div>
+        </div>
+
+        <div class="legend" id="legend" style="display: none;">
+            <div class="legend-item">
+                <div class="legend-icon" style="background: #f59e0b;"></div>
+                <span>Firewall</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-icon" style="background: #10b981;"></div>
+                <span>Aggregation Switch</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-icon" style="background: #ef4444;"></div>
+                <span>Access Switch</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-icon" style="background: #3b82f6; border-radius: 50%;"></div>
+                <span>Access Point</span>
+            </div>
+            <div class="legend-item">
+                <div style="width: 30px; height: 3px; background: #8b5cf6;"></div>
+                <span>Fiber Interconnect</span>
+            </div>
+            <div class="legend-item">
+                <div style="width: 30px; height: 2px; background: #9ca3af;"></div>
+                <span>Copper/AP Link</span>
+            </div>
+        </div>
+
+        <div class="physics-controls">
+            <label for="layoutSelect">Layout:</label>
+            <select id="layoutSelect">
+                <option value="hierarchical">Hierarchical</option>
+                <option value="physics">Physics (Dynamic)</option>
+                <option value="static">Static (Manual)</option>
+            </select>
+
+            <label for="springLength">Spacing:</label>
+            <input type="range" id="springLength" min="50" max="400" value="150">
+
+            <label for="apSpacing">AP Spacing:</label>
+            <input type="range" id="apSpacing" min="20" max="80" value="40">
+
+            <button id="applySettings" class="btn btn-blue" style="padding: 8px 16px;">Apply Layout</button>
+            <button id="stackAPsBtn" class="btn btn-purple" style="padding: 8px 16px;">Stack APs</button>
+        </div>
+    </div>
+
+    <div id="message-box">
+        <span id="message-text"></span>
+    </div>
+
+    <!-- Export container that includes the title and network -->
+    <div id="export-container" style="background: white; padding: 20px; border-radius: 10px;">
+        <div id="project-header" style="display: none; text-align: center; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 2px solid #e5e7eb;">
+            <h2 id="project-title" style="margin: 0; font-size: 1.8em; color: #1f2937;"></h2>
+            <p id="project-subtitle" style="margin: 5px 0 0 0; color: #6b7280; font-size: 0.95em;"></p>
+        </div>
+        <div id="network-container"></div>
+    </div>
+
+    <div class="info-panel" id="info-panel" style="display: none;">
+        <h3>📋 Network Summary</h3>
+        <div id="network-summary"></div>
+    </div>
+
+    <!-- Collapsible Instructions Section -->
+    <details class="instructions-panel" style="margin-top: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <summary style="padding: 15px 20px; cursor: pointer; font-weight: bold; font-size: 1.1em; background: #f8fafc; border-radius: 10px;">
+            📖 Instructions: How to Extract Data from Hamina
+        </summary>
+        <div style="padding: 20px;">
+            
+            <h3 style="margin-top: 0; color: #1e40af;">Step 1: Copy the Extractor Script</h3>
+            <p>Click the button below to copy the Hamina extractor script to your clipboard:</p>
+            <button id="copyScriptBtn" class="btn btn-blue" style="margin-bottom: 15px;">📋 Copy Extractor Script</button>
+            <span id="copyConfirm" style="color: green; margin-left: 10px; display: none;">✓ Copied!</span>
+            
+            <h3 style="color: #1e40af;">Step 2: Open Hamina</h3>
+            <ol>
+                <li>Open your Hamina project</li>
+                <li>Navigate to <strong>Cabling & Power Details</strong> report</li>
+                <li>Open browser DevTools: Press <code>F12</code> (or right-click → Inspect)</li>
+                <li>Go to the <strong>Console</strong> tab</li>
+                <li>Paste the extractor script and press Enter</li>
+            </ol>
+            
+            <h3 style="color: #1e40af;">Step 3: Extract Data from Each Floor</h3>
+            <div style="background: #1f2937; color: #f8fafc; padding: 15px; border-radius: 8px; font-family: monospace; margin: 10px 0;">
+                <div style="color: #9ca3af;">// Start fresh</div>
+                <div style="color: #fbbf24;">clearCollection()</div>
+                <br>
+                <div style="color: #9ca3af;">// Navigate to Floor 1 in Hamina, then run:</div>
+                <div style="color: #fbbf24;">addCurrentPageToCollection()</div>
+                <br>
+                <div style="color: #9ca3af;">// Navigate to Floor 2, then run again:</div>
+                <div style="color: #fbbf24;">addCurrentPageToCollection()</div>
+                <br>
+                <div style="color: #9ca3af;">// Repeat for all floors...</div>
+                <br>
+                <div style="color: #9ca3af;">// After all floors, export everything:</div>
+                <div style="color: #fbbf24;">exportCollectedData()</div>
+            </div>
+            
+            <h3 style="color: #1e40af;">Step 4: Save and Visualize</h3>
+            <ol>
+                <li>The JSON is automatically copied to your clipboard</li>
+                <li>Paste into a text file and save as <code>ProjectName.json</code></li>
+                <li>Upload the JSON file to this visualizer</li>
+                <li>Click <strong>"Visualize Network"</strong></li>
+            </ol>
+            
+            <h3 style="color: #1e40af;">Quick Reference</h3>
+            <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+                <tr style="background: #f1f5f9;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #e2e8f0;">Command</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #e2e8f0;">Description</th>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace;">clearCollection()</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">Start fresh / clear previous data</td>
+                </tr>
+                <tr style="background: #f8fafc;">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace;">addCurrentPageToCollection()</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">Extract current floor & add to collection</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace;">showStatus()</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">See what's been collected so far</td>
+                </tr>
+                <tr style="background: #f8fafc;">
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace;">exportCollectedData()</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">Export all floors as JSON (copies to clipboard)</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0; font-family: monospace;">quickExport()</td>
+                    <td style="padding: 10px; border: 1px solid #e2e8f0;">Export just the current page</td>
+                </tr>
+            </table>
+            
+            <details style="margin-top: 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <summary style="padding: 10px 15px; cursor: pointer; font-weight: bold;">🔧 View Full Extractor Script</summary>
+                <pre id="extractorScript" style="padding: 15px; overflow-x: auto; font-size: 12px; background: #1f2937; color: #f8fafc; border-radius: 0 0 8px 8px; margin: 0; max-height: 400px; overflow-y: auto;"></pre>
+            </details>
+        </div>
+    </details>
+
+    <script>
+        // Global variables
+        let network = null;
+        let loadedData = null;
+        let nodesDataSet = null;
+        let edgesDataSet = null;
+        let showingAPs = true;
+        let allNodes = [];
+        let allEdges = [];
+        let apsBySwitch = {}; // Track APs per switch globally
+
+        // DOM Elements
+        const jsonFile = document.getElementById('jsonFile');
+        const visualizeBtn = document.getElementById('visualizeBtn');
+        const toggleAPs = document.getElementById('toggleAPs');
+        const fitBtn = document.getElementById('fitBtn');
+        const exportBtn = document.getElementById('exportBtn');
+        const projectNameInput = document.getElementById('projectName');
+        const projectHeader = document.getElementById('project-header');
+        const projectTitle = document.getElementById('project-title');
+        const projectSubtitle = document.getElementById('project-subtitle');
+        const exportContainer = document.getElementById('export-container');
+        const networkContainer = document.getElementById('network-container');
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+        const layoutSelect = document.getElementById('layoutSelect');
+        const springLength = document.getElementById('springLength');
+        const applySettings = document.getElementById('applySettings');
+        const stackAPsBtn = document.getElementById('stackAPsBtn');
+        const apSpacing = document.getElementById('apSpacing');
+
+        // Global function to reposition APs vertically
+        function repositionAPsVertically() {
+            if (!network || !nodesDataSet) return;
+            
+            const positions = network.getPositions();
+            const updates = [];
+            
+            // Get switch positions
+            const switchPositions = {};
+            allNodes.forEach(node => {
+                if (node.group !== 'AP' && positions[node.id]) {
+                    switchPositions[node.id] = positions[node.id];
+                }
+            });
+            
+            // Reposition APs vertically under their switch
+            const apSpacingY = parseInt(apSpacing.value) || 40;
+            const apOffsetY = 80;
+            
+            Object.keys(apsBySwitch).forEach(switchName => {
+                const switchPos = switchPositions[switchName];
+                if (!switchPos) return;
+                
+                const aps = apsBySwitch[switchName];
+                aps.forEach((ap, index) => {
+                    const apId = ap.name;
+                    if (positions[apId]) {
+                        updates.push({
+                            id: apId,
+                            x: switchPos.x,
+                            y: switchPos.y + apOffsetY + (index * apSpacingY)
+                        });
+                    }
+                });
+            });
+            
+            // Apply position updates
+            if (updates.length > 0) {
+                nodesDataSet.update(updates);
+                network.setOptions({ physics: { enabled: false } });
+                console.log(`📍 Repositioned ${updates.length} APs vertically`);
+                showMessage(`Stacked ${updates.length} APs vertically`);
+            }
+        }
+
+        // Show message function
+        function showMessage(text, duration = 3000) {
+            messageText.textContent = text;
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, duration);
+        }
+
+        // File upload handler
+        jsonFile.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        loadedData = JSON.parse(e.target.result);
+                        console.log('✅ File loaded:', file.name);
+                        console.log('📊 Data:', loadedData);
+                        showMessage(`File "${file.name}" loaded! Click "Visualize Network" to display.`);
+                    } catch (error) {
+                        console.error('❌ JSON parse error:', error);
+                        showMessage('Error: Invalid JSON file');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Visualize button
+        visualizeBtn.addEventListener('click', () => {
+            if (!loadedData) {
+                showMessage('Please upload a JSON file first');
+                return;
+            }
+            drawNetwork(loadedData);
+        });
+
+        // Toggle APs button
+        toggleAPs.addEventListener('click', () => {
+            if (!network) return;
+
+            showingAPs = !showingAPs;
+            toggleAPs.textContent = showingAPs ? '👁️ Hide APs' : '👁️ Show APs';
+
+            if (showingAPs) {
+                // Restore all nodes and edges
+                nodesDataSet.clear();
+                edgesDataSet.clear();
+                nodesDataSet.add(allNodes);
+                edgesDataSet.add(allEdges);
+            } else {
+                // Remove AP nodes and their edges
+                const apNodeIds = allNodes.filter(n => n.group === 'AP').map(n => n.id);
+                const nonApNodes = allNodes.filter(n => n.group !== 'AP');
+                const nonApEdges = allEdges.filter(e => 
+                    !apNodeIds.includes(e.from) && !apNodeIds.includes(e.to)
+                );
+
+                nodesDataSet.clear();
+                edgesDataSet.clear();
+                nodesDataSet.add(nonApNodes);
+                edgesDataSet.add(nonApEdges);
+            }
+
+            network.fit();
+        });
+
+        // Fit button
+        fitBtn.addEventListener('click', () => {
+            if (network) {
+                network.fit({ animation: true });
+            }
+        });
+
+        // Apply layout settings
+        applySettings.addEventListener('click', () => {
+            if (loadedData) {
+                drawNetwork(loadedData);
+            }
+        });
+
+        // Stack APs button
+        stackAPsBtn.addEventListener('click', () => {
+            if (network) {
+                // Ensure hierarchical is disabled before stacking
+                network.setOptions({
+                    layout: { hierarchical: { enabled: false } },
+                    physics: { enabled: false }
+                });
+                
+                setTimeout(() => {
+                    repositionAPsVertically();
+                    network.fit();
+                }, 50);
+            }
+        });
+
+        // Export button - save as PNG
+        exportBtn.addEventListener('click', () => {
+            if (!network) {
+                showMessage('Please visualize a network first');
+                return;
+            }
+
+            showMessage('Generating image...');
+
+            // Make sure project header is visible for export
+            const projectName = projectNameInput.value.trim();
+            if (projectName) {
+                projectHeader.style.display = 'block';
+            }
+
+            // Use html2canvas to capture the export container
+            html2canvas(exportContainer, {
+                backgroundColor: '#ffffff',
+                scale: 2, // Higher resolution
+                logging: false,
+                useCORS: true,
+                allowTaint: true
+            }).then(canvas => {
+                // Create download link
+                const link = document.createElement('a');
+                const fileName = projectName 
+                    ? `${projectName.replace(/[^a-z0-9]/gi, '_')}_Network_Diagram.png`
+                    : 'Network_Diagram.png';
+                link.download = fileName;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+                showMessage(`Image saved as "${fileName}"`);
+            }).catch(err => {
+                console.error('Export error:', err);
+                showMessage('Error exporting image. Try again.');
+            });
+        });
+
+        // Update project header when input changes
+        projectNameInput.addEventListener('input', () => {
+            updateProjectHeader();
+        });
+
+        function updateProjectHeader() {
+            const projectName = projectNameInput.value.trim();
+            if (projectName) {
+                projectTitle.textContent = projectName;
+                const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                // If we have data loaded, show stats; otherwise show date only
+                if (loadedData && loadedData.access_points) {
+                    const apCount = loadedData.access_points?.length || 0;
+                    const switchCount = loadedData.switches?.length || 0;
+                    projectSubtitle.textContent = `${switchCount} Switches • ${apCount} Access Points | ${today}`;
+                } else {
+                    projectSubtitle.textContent = `Network Topology Diagram | ${today}`;
+                }
+                projectHeader.style.display = 'block';
+            } else {
+                projectHeader.style.display = 'none';
+            }
+        }
+
+        // Get physics options
+        function getPhysicsOptions(nodeCount) {
+            const layout = layoutSelect.value;
+            const spacing = parseInt(springLength.value);
+
+            if (layout === 'static') {
+                return { enabled: false };
+            }
+
+            if (layout === 'hierarchical') {
+                return {
+                    enabled: true,
+                    hierarchicalRepulsion: {
+                        centralGravity: 0.0,
+                        springLength: spacing,
+                        springConstant: 0.01,
+                        nodeDistance: spacing,
+                        damping: 0.09
+                    }
+                };
+            }
+
+            // Physics mode
+            return {
+                enabled: true,
+                barnesHut: {
+                    gravitationalConstant: -2000,
+                    centralGravity: 0.3,
+                    springLength: spacing,
+                    springConstant: 0.04,
+                    damping: 0.09
+                },
+                stabilization: {
+                    enabled: true,
+                    iterations: 1000
+                }
+            };
+        }
+
+        // Main network drawing function
+        function drawNetwork(data) {
+            console.log('🎨 Drawing network...');
+            showMessage('Generating network visualization...');
+
+            if (network) {
+                network.destroy();
+            }
+
+            const nodes = [];
+            const edges = [];
+            const usedIds = new Set();
+            
+            // Reset and track APs per switch for vertical stacking
+            apsBySwitch = {};
+
+            // Helper to get unique ID
+            function getUniqueId(baseName) {
+                if (!usedIds.has(baseName)) {
+                    usedIds.add(baseName);
+                    return baseName;
+                }
+                let counter = 2;
+                let uniqueName = `${baseName}_${counter}`;
+                while (usedIds.has(uniqueName)) {
+                    counter++;
+                    uniqueName = `${baseName}_${counter}`;
+                }
+                usedIds.add(uniqueName);
+                return uniqueName;
+            }
+
+            // Helper to determine device type
+            function getDeviceType(name) {
+                if (name.toLowerCase().includes('firewall')) return 'Firewall';
+                if (name.includes('-AGG') || name.includes('AGG')) return 'Aggregation';
+                if (name.includes('-SW') || name.includes('SW')) return 'Switch';
+                return 'Switch';
+            }
+
+            // Helper to get hierarchy level
+            function getLevel(type) {
+                switch (type) {
+                    case 'Firewall': return 0;
+                    case 'Aggregation': return 1;
+                    case 'Switch': return 2;
+                    case 'AP': return 3;
+                    default: return 2;
+                }
+            }
+
+            // Count stats
+            let switchCount = 0;
+            let firewallCount = 0;
+            let aggCount = 0;
+
+            // Process switches (from Hamina format)
+            if (data.switches && Array.isArray(data.switches)) {
+                console.log('📦 Processing', data.switches.length, 'switches');
+                
+                data.switches.forEach(sw => {
+                    const deviceType = getDeviceType(sw.name);
+                    const uniqueId = getUniqueId(sw.name);
+
+                    if (deviceType === 'Firewall') firewallCount++;
+                    else if (deviceType === 'Aggregation') aggCount++;
+                    else switchCount++;
+
+                    nodes.push({
+                        id: uniqueId,
+                        label: sw.name,
+                        group: deviceType,
+                        level: getLevel(deviceType),
+                        title: `${sw.name}\nAPs: ${sw.aps_count || 0}\nPorts: ${sw.ports_used || 'N/A'}\nPower: ${sw.power_total || 'N/A'}`
+                    });
+                });
+            }
+
+            // Process access points (from Hamina format - note: "access_points" not "accesspoints")
+            if (data.access_points && Array.isArray(data.access_points)) {
+                console.log('📡 Processing', data.access_points.length, 'access points');
+                
+                // First pass: count APs per switch
+                data.access_points.forEach(ap => {
+                    if (ap.connected_switch) {
+                        if (!apsBySwitch[ap.connected_switch]) {
+                            apsBySwitch[ap.connected_switch] = [];
+                        }
+                        apsBySwitch[ap.connected_switch].push(ap);
+                    }
+                });
+                
+                // Second pass: create AP nodes with vertical positioning
+                data.access_points.forEach(ap => {
+                    const uniqueId = getUniqueId(ap.name);
+                    
+                    // Calculate vertical position within switch's AP group
+                    let apIndex = 0;
+                    if (ap.connected_switch && apsBySwitch[ap.connected_switch]) {
+                        apIndex = apsBySwitch[ap.connected_switch].findIndex(a => a.name === ap.name);
+                    }
+
+                    nodes.push({
+                        id: uniqueId,
+                        label: ap.name,
+                        group: 'AP',
+                        level: 3,
+                        apIndex: apIndex, // Store for positioning
+                        connectedSwitch: ap.connected_switch,
+                        title: `${ap.name}\nFloor: ${ap.floor}\nModel: ${ap.make} ${ap.model}\nPower: ${ap.power}\nCable: ${ap.cable_length}\nSwitch: ${ap.connected_switch}`
+                    });
+
+                    // Create edge to connected switch
+                    if (ap.connected_switch) {
+                        edges.push({
+                            from: ap.connected_switch,
+                            to: uniqueId,
+                            color: { color: '#9ca3af' },
+                            width: 1
+                        });
+                    }
+                });
+            }
+
+            // Process interconnect cabling (the NEW data!)
+            if (data.interconnect_cabling && Array.isArray(data.interconnect_cabling)) {
+                console.log('🔗 Processing', data.interconnect_cabling.length, 'interconnect connections');
+                
+                data.interconnect_cabling.forEach(conn => {
+                    // Make sure both endpoints exist as nodes
+                    if (!usedIds.has(conn.from)) {
+                        const deviceType = getDeviceType(conn.from);
+                        if (deviceType === 'Firewall') firewallCount++;
+                        else if (deviceType === 'Aggregation') aggCount++;
+                        else switchCount++;
+
+                        nodes.push({
+                            id: conn.from,
+                            label: conn.from,
+                            group: deviceType,
+                            level: getLevel(deviceType),
+                            title: conn.from
+                        });
+                        usedIds.add(conn.from);
+                    }
+
+                    if (!usedIds.has(conn.to)) {
+                        const deviceType = getDeviceType(conn.to);
+                        if (deviceType === 'Firewall') firewallCount++;
+                        else if (deviceType === 'Aggregation') aggCount++;
+                        else switchCount++;
+
+                        nodes.push({
+                            id: conn.to,
+                            label: conn.to,
+                            group: deviceType,
+                            level: getLevel(deviceType),
+                            title: conn.to
+                        });
+                        usedIds.add(conn.to);
+                    }
+
+                    // Create the interconnect edge
+                    const isFiber = conn.cable_type?.toLowerCase() === 'fiber';
+                    edges.push({
+                        from: conn.from,
+                        to: conn.to,
+                        color: { color: isFiber ? '#8b5cf6' : '#6b7280' },
+                        width: isFiber ? 3 : 2,
+                        title: `${conn.from} ↔ ${conn.to}\nType: ${conn.cable_type}\nLength: ${conn.cable_length}`,
+                        dashes: false
+                    });
+                });
+            }
+
+            // Store for toggling
+            allNodes = nodes;
+            allEdges = edges;
+
+            // Update stats display
+            document.getElementById('switchCount').textContent = switchCount + aggCount;
+            document.getElementById('apCount').textContent = data.access_points?.length || 0;
+            document.getElementById('interconnectCount').textContent = data.interconnect_cabling?.length || 0;
+            document.getElementById('firewallCount').textContent = firewallCount;
+            document.getElementById('stats-container').style.display = 'grid';
+            document.getElementById('legend').style.display = 'flex';
+
+            // Create summary
+            const summaryHtml = `
+                <ul>
+                    <li><strong>Floors:</strong> ${data.project_info?.floors_extracted?.join(', ') || 'N/A'}</li>
+                    <li><strong>Total Switches:</strong> ${switchCount + aggCount} (${aggCount} aggregation, ${switchCount} access)</li>
+                    <li><strong>Firewalls:</strong> ${firewallCount}</li>
+                    <li><strong>Access Points:</strong> ${data.access_points?.length || 0}</li>
+                    <li><strong>Interconnect Links:</strong> ${data.interconnect_cabling?.length || 0}</li>
+                    <li><strong>Extraction Date:</strong> ${data.project_info?.extraction_date ? new Date(data.project_info.extraction_date).toLocaleString() : 'N/A'}</li>
+                </ul>
+            `;
+            document.getElementById('network-summary').innerHTML = summaryHtml;
+            document.getElementById('info-panel').style.display = 'block';
+
+            // Update project header with stats
+            const projectName = projectNameInput.value.trim();
+            if (projectName) {
+                projectTitle.textContent = projectName;
+                const apCount = data.access_points?.length || 0;
+                const switchTotal = switchCount + aggCount;
+                const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                projectSubtitle.textContent = `${switchTotal} Switches • ${apCount} Access Points • ${firewallCount} Firewalls | ${today}`;
+                projectHeader.style.display = 'block';
+            } else {
+                projectHeader.style.display = 'none';
+            }
+
+            console.log('📈 Nodes:', nodes.length, 'Edges:', edges.length);
+
+            if (nodes.length === 0) {
+                showMessage('No devices found in JSON file');
+                return;
+            }
+
+            // Create DataSets
+            nodesDataSet = new vis.DataSet(nodes);
+            edgesDataSet = new vis.DataSet(edges);
+
+            const visData = {
+                nodes: nodesDataSet,
+                edges: edgesDataSet
+            };
+
+            // Layout options
+            const layout = layoutSelect.value;
+            let layoutOptions = {};
+
+            if (layout === 'hierarchical') {
+                layoutOptions = {
+                    hierarchical: {
+                        enabled: true,
+                        direction: 'UD',
+                        sortMethod: 'directed',
+                        levelSeparation: parseInt(springLength.value),
+                        nodeSpacing: 50,
+                        treeSpacing: 200,
+                        blockShifting: true,
+                        edgeMinimization: true,
+                        parentCentralization: true
+                    }
+                };
+            }
+
+            const options = {
+                groups: {
+                    'Firewall': {
+                        shape: 'box',
+                        color: { background: '#f59e0b', border: '#d97706' },
+                        font: { size: 14, color: '#000000' },
+                        borderWidth: 2
+                    },
+                    'Aggregation': {
+                        shape: 'box',
+                        color: { background: '#10b981', border: '#059669' },
+                        font: { size: 14, color: '#000000' },
+                        borderWidth: 2
+                    },
+                    'Switch': {
+                        shape: 'box',
+                        color: { background: '#ef4444', border: '#b91c1c' },
+                        font: { size: 14, color: '#000000' },
+                        borderWidth: 2
+                    },
+                    'AP': {
+                        shape: 'dot',
+                        size: 10,
+                        color: { background: '#3b82f6', border: '#1e40af' },
+                        font: { size: 10, color: '#374151' }
+                    }
+                },
+                layout: layoutOptions,
+                physics: getPhysicsOptions(nodes.length),
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 100,
+                    navigationButtons: true,
+                    keyboard: true
+                },
+                edges: {
+                    smooth: {
+                        enabled: true,
+                        type: 'cubicBezier',
+                        forceDirection: 'vertical',
+                        roundness: 0.4
+                    }
+                }
+            };
+
+            // Create network
+            network = new vis.Network(networkContainer, visData, options);
+
+            // Handle stabilization and AP stacking
+            let apStackingDone = false;
+            
+            function performAPStacking() {
+                if (apStackingDone) return;
+                apStackingDone = true;
+                
+                console.log('📍 Performing AP stacking...');
+                
+                // Disable hierarchical layout and physics
+                network.setOptions({
+                    layout: { hierarchical: { enabled: false } },
+                    physics: { enabled: false }
+                });
+                
+                // Short delay then reposition
+                setTimeout(() => {
+                    repositionAPsVertically();
+                    network.fit();
+                    showMessage('Network visualization complete!');
+                }, 150);
+            }
+            
+            if (layout === 'hierarchical') {
+                // For hierarchical layout, use multiple triggers to ensure it works
+                
+                // Trigger 1: stabilizationIterationsDone event
+                network.once('stabilizationIterationsDone', () => {
+                    console.log('✅ Hierarchical stabilization complete');
+                    setTimeout(performAPStacking, 300);
+                });
+                
+                // Trigger 2: Timeout fallback (hierarchical sometimes doesn't fire stabilization event)
+                setTimeout(() => {
+                    if (!apStackingDone) {
+                        console.log('⏱️ Timeout fallback - performing AP stacking');
+                        performAPStacking();
+                    }
+                }, 1500);
+                
+            } else {
+                // For non-hierarchical layouts
+                network.on('stabilizationIterationsDone', () => {
+                    console.log('✅ Network stabilized');
+                    setTimeout(performAPStacking, 100);
+                });
+                
+                // Timeout fallback for physics layout too
+                setTimeout(() => {
+                    if (!apStackingDone) {
+                        performAPStacking();
+                    }
+                }, 3000);
+            }
+
+            // Click handler to show device info
+            network.on('click', (params) => {
+                if (params.nodes.length > 0) {
+                    const nodeId = params.nodes[0];
+                    const node = nodesDataSet.get(nodeId);
+                    console.log('Selected node:', node);
+                }
+            });
+
+            // Drag handler - make APs follow their switch
+            network.on('dragging', (params) => {
+                if (params.nodes.length > 0) {
+                    const draggedNodeId = params.nodes[0];
+                    const draggedNode = nodesDataSet.get(draggedNodeId);
+                    
+                    // Only process if dragging a switch (not an AP)
+                    if (draggedNode && draggedNode.group !== 'AP') {
+                        // Check if this switch has APs
+                        if (apsBySwitch[draggedNodeId]) {
+                            const positions = network.getPositions([draggedNodeId]);
+                            const switchPos = positions[draggedNodeId];
+                            
+                            if (switchPos) {
+                                const apSpacingY = parseInt(apSpacing.value) || 40;
+                                const apOffsetY = 80;
+                                
+                                const updates = [];
+                                apsBySwitch[draggedNodeId].forEach((ap, index) => {
+                                    updates.push({
+                                        id: ap.name,
+                                        x: switchPos.x,
+                                        y: switchPos.y + apOffsetY + (index * apSpacingY)
+                                    });
+                                });
+                                
+                                if (updates.length > 0) {
+                                    nodesDataSet.update(updates);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Also reposition after drag ends to ensure clean alignment
+            network.on('dragEnd', (params) => {
+                if (params.nodes.length > 0) {
+                    const draggedNodeId = params.nodes[0];
+                    const draggedNode = nodesDataSet.get(draggedNodeId);
+                    
+                    if (draggedNode && draggedNode.group !== 'AP' && apsBySwitch[draggedNodeId]) {
+                        const positions = network.getPositions([draggedNodeId]);
+                        const switchPos = positions[draggedNodeId];
+                        
+                        if (switchPos) {
+                            const apSpacingY = parseInt(apSpacing.value) || 40;
+                            const apOffsetY = 80;
+                            
+                            const updates = [];
+                            apsBySwitch[draggedNodeId].forEach((ap, index) => {
+                                updates.push({
+                                    id: ap.name,
+                                    x: switchPos.x,
+                                    y: switchPos.y + apOffsetY + (index * apSpacingY)
+                                });
+                            });
+                            
+                            if (updates.length > 0) {
+                                nodesDataSet.update(updates);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load message
+        console.log('🌐 Hamina Network Visualizer loaded');
+        console.log('📋 Upload your exported Hamina JSON file to visualize the network');
+
+        // Embedded Hamina Extractor Script
+        const extractorScriptText = `// ============================================================
+// Hamina Cabling & Power Extractor v3
+// ============================================================
+// Paste this entire script into the browser console (F12)
+// while viewing the Cabling & Power Details page in Hamina
+// ============================================================
+
+let collectedSwitches = [];
+let collectedAPs = [];
+let collectedInterconnects = [];
+let processedFloors = [];
+
+function extractSwitchesAndAPs() {
+    console.log('🔍 Extracting switches and AP connections...');
+    
+    const aps = [];
+    const switches = [];
+    const apsBySwitch = {};
+    
+    const allDivs = document.querySelectorAll('div');
+    
+    allDivs.forEach(div => {
+        const text = div.textContent;
+        const match = text.match(/^Devices connected to ["']([^"']+)["']:$/);
+        if (match) {
+            const switchName = match[1];
+            console.log('   📦 Found switch section: ' + switchName);
+            
+            const parent = div.parentElement;
+            const gridContainer = parent?.querySelector('.sc-GmOqV, [class*="bgiUSw"], div[class*="grid"]') ||
+                                  parent?.querySelector('div > div > div');
+            
+            if (gridContainer) {
+                const cells = gridContainer.querySelectorAll(':scope > div');
+                const cellTexts = Array.from(cells).map(c => c.textContent.trim());
+                
+                if (cellTexts.length > 6) {
+                    const dataStart = 6;
+                    
+                    for (let i = dataStart; i + 5 < cellTexts.length; i += 6) {
+                        const ap = {
+                            name: cellTexts[i],
+                            floor: cellTexts[i + 1],
+                            make: cellTexts[i + 2],
+                            model: cellTexts[i + 3],
+                            power: cellTexts[i + 4],
+                            cable_length: cellTexts[i + 5],
+                            connected_switch: switchName
+                        };
+                        
+                        if (ap.name && ap.name.includes('-') && ap.name.includes('AP')) {
+                            aps.push(ap);
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    const tableRows = document.querySelectorAll('tr');
+    tableRows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 7) {
+            const cellTexts = Array.from(cells).map(c => c.textContent.trim());
+            const firstCell = cellTexts[0];
+            const secondCell = cellTexts[1];
+            
+            if ((firstCell.includes('-SW') || firstCell.includes('-AGG') || firstCell.includes('Firewall')) 
+                && /^\\d+$/.test(secondCell)) {
+                
+                switches.push({
+                    name: firstCell,
+                    aps_count: secondCell,
+                    wired_clients: cellTexts[2] || '0',
+                    ports_used: cellTexts[3] || '',
+                    power_aps: cellTexts[4] || '',
+                    power_clients: cellTexts[5] || '',
+                    power_total: cellTexts[6] || ''
+                });
+            }
+        }
+    });
+    
+    console.log('✅ Extracted ' + switches.length + ' switches and ' + aps.length + ' APs');
+    return { switches, aps };
+}
+
+function extractInterconnectCabling() {
+    console.log('🔌 Extracting Interconnect Cabling...');
+    
+    const connections = [];
+    const seen = new Set();
+    
+    let interconnectTable = null;
+    const tables = document.querySelectorAll('table');
+    
+    for (const table of tables) {
+        const text = table.textContent;
+        if (text.includes('Connected to') && text.includes('Cable length') &&
+            (text.includes('Fiber') || text.includes('Copper'))) {
+            interconnectTable = table;
+            break;
+        }
+    }
+    
+    if (!interconnectTable) {
+        console.log('⚠️ Interconnect Cabling table not found');
+        return connections;
+    }
+    
+    const tbody = interconnectTable.querySelector('tbody');
+    const rows = tbody ? tbody.querySelectorAll('tr') : interconnectTable.querySelectorAll('tr');
+    
+    rows.forEach(row => {
+        let cells = row.querySelectorAll('td[role="cell"]');
+        
+        const nestedTable = row.querySelector('table');
+        if (nestedTable) {
+            cells = nestedTable.querySelectorAll('td[role="cell"]');
+        }
+        
+        if (cells.length >= 4) {
+            const device = cells[0]?.textContent?.trim() || '';
+            const connectedTo = cells[1]?.textContent?.trim() || '';
+            const cableType = cells[2]?.textContent?.trim() || '';
+            const cableLength = cells[3]?.textContent?.trim() || '';
+            
+            if (!device || device === 'Device' || device.length === 0) return;
+            
+            const key = device + '|' + connectedTo + '|' + cableType + '|' + cableLength;
+            if (seen.has(key)) return;
+            seen.add(key);
+            
+            connections.push({
+                device: device,
+                connected_to: connectedTo,
+                cable_type: cableType,
+                cable_length: cableLength
+            });
+            console.log('   🔗 ' + device + ' → ' + connectedTo + ' (' + cableType + ', ' + cableLength + ')');
+        }
+    });
+    
+    console.log('✅ Extracted ' + connections.length + ' interconnect connections');
+    return connections;
+}
+
+function extractFloorName() {
+    const match = document.body.innerText.match(/Ports & power - Total at ["']([^"']+)["']/);
+    return match ? match[1] : 'Unknown';
+}
+
+function extractCurrentPage() {
+    console.log('\\n' + '='.repeat(60));
+    console.log('📄 EXTRACTING CURRENT PAGE');
+    console.log('='.repeat(60));
+    
+    const floor = extractFloorName();
+    console.log('📊 Floor: ' + floor);
+    
+    const { switches, aps } = extractSwitchesAndAPs();
+    const interconnects = extractInterconnectCabling();
+    
+    return {
+        floor: floor,
+        switches: switches,
+        access_points: aps,
+        interconnect_cabling: interconnects
+    };
+}
+
+function quickExport() {
+    const data = extractCurrentPage();
+    
+    const output = {
+        floor: data.floor,
+        switches: data.switches.map(sw => ({
+            name: sw.name,
+            aps_count: parseInt(sw.aps_count) || 0,
+            ports_used: sw.ports_used,
+            power_total: sw.power_total
+        })),
+        access_points: data.access_points.map(ap => ({
+            name: ap.name,
+            floor: ap.floor,
+            make: ap.make,
+            model: ap.model,
+            power: ap.power,
+            cable_length: ap.cable_length,
+            connected_switch: ap.connected_switch
+        })),
+        interconnect_cabling: data.interconnect_cabling.map(conn => ({
+            from: conn.device,
+            to: conn.connected_to,
+            cable_type: conn.cable_type,
+            cable_length: conn.cable_length
+        }))
+    };
+    
+    const jsonString = JSON.stringify(output, null, 2);
+    
+    navigator.clipboard.writeText(jsonString).then(() => {
+        console.log('✅ JSON copied to clipboard!');
+    }).catch(() => {
+        console.log('📋 Copy manually from below:');
+    });
+    
+    console.log('\\n📄 OUTPUT:');
+    console.log(jsonString);
+    
+    return output;
+}
+
+function addCurrentPageToCollection() {
+    const pageData = extractCurrentPage();
+    
+    if (processedFloors.includes(pageData.floor)) {
+        console.log('⚠️ Floor "' + pageData.floor + '" already processed. Skipping.');
+        return;
+    }
+    
+    processedFloors.push(pageData.floor);
+    
+    pageData.switches.forEach(sw => {
+        sw.source_floor = pageData.floor;
+        if (!collectedSwitches.some(s => s.name === sw.name)) {
+            collectedSwitches.push(sw);
+        }
+    });
+    
+    pageData.access_points.forEach(ap => {
+        ap.source_floor = pageData.floor;
+        if (!collectedAPs.some(a => a.name === ap.name)) {
+            collectedAPs.push(ap);
+        }
+    });
+    
+    pageData.interconnect_cabling.forEach(conn => {
+        const exists = collectedInterconnects.some(
+            c => c.device === conn.device && c.connected_to === conn.connected_to
+        );
+        if (!exists) {
+            collectedInterconnects.push(conn);
+        }
+    });
+    
+    showStatus();
+}
+
+function exportCollectedData() {
+    console.log('\\n' + '='.repeat(60));
+    console.log('📤 EXPORTING ALL COLLECTED DATA');
+    console.log('='.repeat(60));
+    
+    const output = {
+        project_info: {
+            floors_extracted: processedFloors,
+            extraction_date: new Date().toISOString(),
+            totals: {
+                switches: collectedSwitches.length,
+                access_points: collectedAPs.length,
+                interconnects: collectedInterconnects.length
+            }
+        },
+        switches: collectedSwitches.map(sw => ({
+            name: sw.name,
+            aps_count: parseInt(sw.aps_count) || 0,
+            ports_used: sw.ports_used,
+            power_total: sw.power_total
+        })),
+        access_points: collectedAPs.map(ap => ({
+            name: ap.name,
+            floor: ap.floor,
+            make: ap.make,
+            model: ap.model,
+            power: ap.power,
+            cable_length: ap.cable_length,
+            connected_switch: ap.connected_switch
+        })),
+        interconnect_cabling: collectedInterconnects.map(conn => ({
+            from: conn.device,
+            to: conn.connected_to,
+            cable_type: conn.cable_type,
+            cable_length: conn.cable_length
+        }))
+    };
+    
+    const jsonString = JSON.stringify(output, null, 2);
+    
+    navigator.clipboard.writeText(jsonString).then(() => {
+        console.log('✅ JSON copied to clipboard!');
+    }).catch(() => {
+        console.log('📋 Copy manually:');
+    });
+    
+    console.log(jsonString);
+    return output;
+}
+
+function clearCollection() {
+    collectedSwitches = [];
+    collectedAPs = [];
+    collectedInterconnects = [];
+    processedFloors = [];
+    console.log('🗑️ Collection cleared.');
+}
+
+function showStatus() {
+    console.log('\\n📊 COLLECTION STATUS:');
+    console.log('   Floors: ' + (processedFloors.length > 0 ? processedFloors.join(', ') : 'None'));
+    console.log('   Switches: ' + collectedSwitches.length);
+    console.log('   APs: ' + collectedAPs.length);
+    console.log('   Interconnects: ' + collectedInterconnects.length);
+}
+
+console.log('');
+console.log('╔══════════════════════════════════════════════════════════╗');
+console.log('║   🔧 HAMINA EXTRACTOR v3 LOADED 🔧                       ║');
+console.log('╠══════════════════════════════════════════════════════════╣');
+console.log('║  clearCollection()            - Start fresh              ║');
+console.log('║  addCurrentPageToCollection() - Add current floor        ║');
+console.log('║  exportCollectedData()        - Export all floors        ║');
+console.log('║  showStatus()                 - See collection status    ║');
+console.log('║  quickExport()                - Export current page only ║');
+console.log('╚══════════════════════════════════════════════════════════╝');
+console.log('');`;
+
+        // Display the script in the details section
+        document.getElementById('extractorScript').textContent = extractorScriptText;
+
+        // Copy script button handler
+        document.getElementById('copyScriptBtn').addEventListener('click', () => {
+            navigator.clipboard.writeText(extractorScriptText).then(() => {
+                const confirmEl = document.getElementById('copyConfirm');
+                confirmEl.style.display = 'inline';
+                setTimeout(() => {
+                    confirmEl.style.display = 'none';
+                }, 3000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy. Please manually copy the script from the expandable section below.');
+            });
+        });
+    </script>
+</body>
+</html>
